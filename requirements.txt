@@ -1,0 +1,12 @@
+anthropic
+langchain
+langchain-community
+langchain-anthropic
+streamlit
+yfinance
+pandas
+numpy
+newsapi-python
+python-dotenv
+matplotlib
+plotly 
