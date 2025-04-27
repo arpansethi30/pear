@@ -9,4 +9,9 @@ numpy
 newsapi-python
 python-dotenv
 matplotlib
-plotly 
+plotly
+fastapi
+uvicorn
+pydantic
+starlette
+python-multipart 

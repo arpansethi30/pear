@@ -81,8 +81,8 @@ class FundamentalAnalysisAgent:
             else:
                 return f"${val:.2f}"
         
-        # Apply formatting
-        formatted_df = df.applymap(format_value)
+        # Apply formatting - replace applymap with map
+        formatted_df = df.map(format_value)
         
         # Convert to string representation
         return formatted_df.to_string()
