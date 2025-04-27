@@ -11,8 +11,6 @@ export default function Home() {
           <nav className="hidden md:flex space-x-6">
             <Link href="/analysis" className="text-gray-600 hover:text-gray-800">Analysis</Link>
             <Link href="/portfolio" className="text-gray-600 hover:text-gray-800">Portfolio</Link>
-            <Link href="/quant" className="text-gray-600 hover:text-gray-800">Quant</Link>
-            <Link href="/sentiment" className="text-gray-600 hover:text-gray-800">Sentiment</Link>
           </nav>
           <button className="bg-[#1a1f36] text-white px-5 py-2 rounded-lg hover:bg-[#2d3452]">
             Get Started

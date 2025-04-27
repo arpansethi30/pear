@@ -1,6 +1,184 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
+// Define types for risk analysis data
+interface RiskMetrics {
+  annualized_return: string;
+  annualized_volatility: string;
+  sharpe_ratio: string;
+  max_drawdown: string;
+  var_95: string;
+  average_correlation: string;
+}
+
+interface RiskCharts {
+  correlation_heatmap: string;
+  sector_chart: string;
+}
+
+interface RiskResponse {
+  status: string;
+  tickers: string[];
+  period: string;
+  metrics: RiskMetrics;
+  analysis: string;
+  charts: RiskCharts;
+}
+
+// Sample portfolio data - in a real app you would fetch this from an API or database
+const portfolioHoldings = [
+  { name: 'Apple Inc.', symbol: 'AAPL', shares: 50, price: 175.50, value: 8775.00, change: 1.25 },
+  { name: 'Microsoft Corporation', symbol: 'MSFT', shares: 25, price: 320.20, value: 8005.00, change: 0.75 },
+  { name: 'Amazon.com Inc.', symbol: 'AMZN', shares: 15, price: 128.25, value: 1923.75, change: -0.50 },
+  { name: 'Tesla Inc.', symbol: 'TSLA', shares: 20, price: 240.50, value: 4810.00, change: 2.10 },
+  { name: 'Google (Alphabet Inc.)', symbol: 'GOOGL', shares: 10, price: 122.75, value: 1227.50, change: 0.30 },
+];
+
 export default function Portfolio() {
+  const [loading, setLoading] = useState(false);
+  const [riskData, setRiskData] = useState<RiskResponse | null>(null);
+  const [error, setError] = useState("");
+  
+  // Function to render markdown text with proper styling
+  const renderMarkdown = (text: string) => {
+    if (!text) return null;
+    
+    // Process the text line by line
+    return text.split('\n').map((line, index) => {
+      // Handle headings
+      if (line.startsWith('# ')) {
+        return (
+          <h2 key={index} className="text-2xl font-bold text-gray-800 mt-6 mb-4">
+            {line.replace('# ', '')}
+          </h2>
+        );
+      }
+      
+      if (line.startsWith('## ')) {
+        return (
+          <h3 key={index} className="text-xl font-semibold text-gray-800 mt-5 mb-3">
+            {line.replace('## ', '')}
+          </h3>
+        );
+      }
+
+      if (line.startsWith('### ')) {
+        return (
+          <h4 key={index} className="text-lg font-semibold text-gray-800 mt-4 mb-2">
+            {line.replace('### ', '')}
+          </h4>
+        );
+      }
+
+      // Handle bold text
+      if (line.includes('**')) {
+        const parts: any[] = [];
+        let currentText = line;
+        let key = 0;
+        
+        while (currentText.includes('**')) {
+          const startIdx = currentText.indexOf('**');
+          const endIdx = currentText.indexOf('**', startIdx + 2);
+          
+          if (startIdx !== -1 && endIdx !== -1) {
+            // Text before the bold part
+            if (startIdx > 0) {
+              parts.push(<span key={key++}>{currentText.substring(0, startIdx)}</span>);
+            }
+            
+            // Bold part
+            parts.push(
+              <span key={key++} className="font-bold">
+                {currentText.substring(startIdx + 2, endIdx)}
+              </span>
+            );
+            
+            // Update current text to remaining text
+            currentText = currentText.substring(endIdx + 2);
+          } else {
+            break;
+          }
+        }
+        
+        // Add remaining text
+        if (currentText) {
+          parts.push(<span key={key++}>{currentText}</span>);
+        }
+        
+        return <p key={index} className="text-gray-700 mb-3 leading-relaxed">{parts}</p>;
+      }
+
+      // Handle list items
+      if (line.trim().startsWith('- ')) {
+        return (
+          <li key={index} className="text-gray-700 ml-6 mb-1 leading-relaxed list-disc">
+            {line.replace(/^-\s+/, '')}
+          </li>
+        );
+      }
+
+      if (line.trim().match(/^\d+\.\s/)) {
+        return (
+          <li key={index} className="text-gray-700 ml-6 mb-1 leading-relaxed list-decimal">
+            {line.replace(/^\d+\.\s+/, '')}
+          </li>
+        );
+      }
+
+      // Empty lines become spacing
+      if (line.trim() === '') {
+        return <div key={index} className="h-2"></div>;
+      }
+
+      // Default paragraph formatting
+      return <p key={index} className="text-gray-700 mb-3 leading-relaxed">{line}</p>;
+    });
+  };
+
+  useEffect(() => {
+    // Fetch risk analysis data when component mounts
+    fetchRiskAnalysis();
+  }, []);
+
+  const fetchRiskAnalysis = async () => {
+    setLoading(true);
+    setError("");
+    
+    try {
+      // Get tickers from portfolio holdings
+      const tickers = portfolioHoldings.map(asset => asset.symbol);
+      
+      const response = await fetch("http://localhost:8000/risk/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tickers: tickers,
+          period: "1y",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Risk analysis failed");
+      }
+
+      const data = await response.json();
+      setRiskData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
+      console.error("Error analyzing portfolio risk:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate total portfolio value
+  const totalPortfolioValue = portfolioHoldings.reduce((sum, asset) => sum + asset.value, 0);
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
@@ -10,8 +188,6 @@ export default function Portfolio() {
           <nav className="hidden md:flex space-x-6">
             <Link href="/analysis" className="text-gray-600 hover:text-gray-800">Analysis</Link>
             <Link href="/portfolio" className="text-[#1a1f36] hover:text-gray-800 border-b-2 border-[#1a1f36]">Portfolio</Link>
-            <Link href="/quant" className="text-gray-600 hover:text-gray-800">Quant</Link>
-            <Link href="/sentiment" className="text-gray-600 hover:text-gray-800">Sentiment</Link>
           </nav>
           <button className="bg-[#1a1f36] text-white px-5 py-2 rounded-lg hover:bg-[#2d3452]">
             Get Started
@@ -34,7 +210,7 @@ export default function Portfolio() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
               <div>
                 <h2 className="text-xl font-semibold text-gray-800">My Portfolio</h2>
-                <p className="text-gray-600 text-sm mt-1">Last updated: May 20, 2023</p>
+                <p className="text-gray-600 text-sm mt-1">Last updated: {new Date().toLocaleDateString()}</p>
               </div>
               <div className="flex space-x-3 mt-4 md:mt-0">
                 <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50">
@@ -50,7 +226,7 @@ export default function Portfolio() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="p-4 bg-light-bg rounded-lg">
                 <div className="text-sm text-gray-600 mb-1">Total Value</div>
-                <div className="text-xl font-semibold text-gray-800">$124,500.00</div>
+                <div className="text-xl font-semibold text-gray-800">${totalPortfolioValue.toFixed(2)}</div>
               </div>
               <div className="p-4 bg-light-bg rounded-lg">
                 <div className="text-sm text-gray-600 mb-1">Daily Change</div>
@@ -62,14 +238,39 @@ export default function Portfolio() {
               </div>
               <div className="p-4 bg-light-bg rounded-lg">
                 <div className="text-sm text-gray-600 mb-1">Risk Level</div>
-                <div className="text-xl font-semibold text-gray-800">Moderate</div>
+                <div className="text-xl font-semibold text-gray-800">
+                  {loading 
+                    ? "Calculating..." 
+                    : riskData 
+                      ? parseFloat(riskData.metrics.annualized_volatility) > 25 
+                        ? "High" 
+                        : parseFloat(riskData.metrics.annualized_volatility) > 15 
+                          ? "Moderate" 
+                          : "Low"
+                      : "Not Available"}
+                </div>
               </div>
             </div>
 
-            {/* Asset Allocation Chart Placeholder */}
-            <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center mb-6">
-              <span className="text-gray-400">Asset Allocation Chart</span>
-            </div>
+            {/* Asset Allocation Chart */}
+            {loading ? (
+              <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center mb-6">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#1a1f36]"></div>
+              </div>
+            ) : riskData?.charts?.sector_chart ? (
+              <div className="bg-gray-50 rounded-lg p-4 mb-6 max-h-[400px] overflow-hidden">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Asset Allocation</h3>
+                <div 
+                  dangerouslySetInnerHTML={{ __html: riskData.charts.sector_chart }}
+                  className="w-full h-[300px]"
+                />
+                <script src="https://cdn.plot.ly/plotly-2.29.1.min.js" async></script>
+              </div>
+            ) : (
+              <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center mb-6">
+                <span className="text-gray-400">Asset Allocation Chart Not Available</span>
+              </div>
+            )}
           </div>
 
           {/* Holdings Table */}
@@ -100,13 +301,7 @@ export default function Portfolio() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { name: 'Apple Inc.', symbol: 'AAPL', shares: 50, price: 175.50, value: 8775.00, change: 1.25 },
-                    { name: 'Microsoft Corporation', symbol: 'MSFT', shares: 25, price: 320.20, value: 8005.00, change: 0.75 },
-                    { name: 'Amazon.com Inc.', symbol: 'AMZN', shares: 15, price: 128.25, value: 1923.75, change: -0.50 },
-                    { name: 'Tesla Inc.', symbol: 'TSLA', shares: 20, price: 240.50, value: 4810.00, change: 2.10 },
-                    { name: 'Google (Alphabet Inc.)', symbol: 'GOOGL', shares: 10, price: 122.75, value: 1227.50, change: 0.30 },
-                  ].map((asset, index) => (
+                  {portfolioHoldings.map((asset, index) => (
                     <tr key={index} className="border-b border-gray-200 hover:bg-gray-50">
                       <td className="py-3 px-4 font-medium">{asset.name}</td>
                       <td className="py-3 px-4 text-gray-600">{asset.symbol}</td>
@@ -127,6 +322,90 @@ export default function Portfolio() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Risk Analysis Section */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-8">
+            <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+              <span className="text-2xl mr-2">📊</span> Risk Analysis
+            </h2>
+            
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#1a1f36]"></div>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+                {error}
+              </div>
+            ) : riskData ? (
+              <div className="space-y-6">
+                {/* Risk Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-sm font-medium text-gray-600 mb-1">Annualized Return</div>
+                    <div className="text-lg font-bold text-gray-800">{riskData.metrics.annualized_return}</div>
+                  </div>
+                  <div className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-sm font-medium text-gray-600 mb-1">Annualized Volatility</div>
+                    <div className="text-lg font-bold text-gray-800">{riskData.metrics.annualized_volatility}</div>
+                  </div>
+                  <div className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-sm font-medium text-gray-600 mb-1">Sharpe Ratio</div>
+                    <div className="text-lg font-bold text-gray-800">{riskData.metrics.sharpe_ratio}</div>
+                  </div>
+                  <div className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-sm font-medium text-gray-600 mb-1">Maximum Drawdown</div>
+                    <div className="text-lg font-bold text-gray-800">{riskData.metrics.max_drawdown}</div>
+                  </div>
+                  <div className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-sm font-medium text-gray-600 mb-1">Value at Risk (95%)</div>
+                    <div className="text-lg font-bold text-gray-800">{riskData.metrics.var_95}</div>
+                  </div>
+                  <div className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="text-sm font-medium text-gray-600 mb-1">Average Correlation</div>
+                    <div className="text-lg font-bold text-gray-800">{riskData.metrics.average_correlation}</div>
+                  </div>
+                </div>
+                
+                {/* Analysis */}
+                <div className="mt-6 bg-gray-50 rounded-lg p-5 border-l-4 border-[#1a1f36]">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Analysis</h3>
+                  <div className="text-gray-700 leading-relaxed">
+                    {renderMarkdown(riskData.analysis)}
+                  </div>
+                </div>
+                
+                {/* Correlation Heatmap */}
+                {riskData.charts.correlation_heatmap && (
+                  <div className="mt-8">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Correlation Heatmap</h3>
+                    <div className="bg-gray-50 p-5 rounded-lg shadow-sm">
+                      <div 
+                        dangerouslySetInnerHTML={{ __html: riskData.charts.correlation_heatmap }} 
+                        className="w-full h-[500px] overflow-hidden"
+                      />
+                      <script src="https://cdn.plot.ly/plotly-2.29.1.min.js" async></script>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-64">
+                <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <p className="text-gray-600 text-center max-w-md">
+                  No risk analysis data available. Click the button below to analyze your portfolio.
+                </p>
+                <button 
+                  onClick={fetchRiskAnalysis}
+                  className="mt-4 bg-[#1a1f36] text-white px-5 py-2 rounded-lg hover:bg-[#2d3452]"
+                >
+                  Analyze Portfolio Risk
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Recommendations */}

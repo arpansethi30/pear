@@ -4,6 +4,102 @@ import { useState } from "react";
 import Link from "next/link";
 import { ReactNode } from "react";
 
+// Function to render markdown text with proper styling
+const renderMarkdown = (text: string) => {
+  if (!text) return null;
+  
+  // Process the text line by line
+  return text.split('\n').map((line, index) => {
+    // Handle headings
+    if (line.startsWith('# ')) {
+      return (
+        <h2 key={index} className="text-2xl font-bold text-gray-800 mt-6 mb-4">
+          {line.replace('# ', '')}
+        </h2>
+      );
+    }
+    
+    if (line.startsWith('## ')) {
+      return (
+        <h3 key={index} className="text-xl font-semibold text-gray-800 mt-5 mb-3">
+          {line.replace('## ', '')}
+        </h3>
+      );
+    }
+
+    if (line.startsWith('### ')) {
+      return (
+        <h4 key={index} className="text-lg font-semibold text-gray-800 mt-4 mb-2">
+          {line.replace('### ', '')}
+        </h4>
+      );
+    }
+
+    // Handle bold text
+    if (line.includes('**')) {
+      const parts = [];
+      let currentText = line;
+      let key = 0;
+      
+      while (currentText.includes('**')) {
+        const startIdx = currentText.indexOf('**');
+        const endIdx = currentText.indexOf('**', startIdx + 2);
+        
+        if (startIdx !== -1 && endIdx !== -1) {
+          // Text before the bold part
+          if (startIdx > 0) {
+            parts.push(<span key={key++}>{currentText.substring(0, startIdx)}</span>);
+          }
+          
+          // Bold part
+          parts.push(
+            <span key={key++} className="font-bold">
+              {currentText.substring(startIdx + 2, endIdx)}
+            </span>
+          );
+          
+          // Update current text to remaining text
+          currentText = currentText.substring(endIdx + 2);
+        } else {
+          break;
+        }
+      }
+      
+      // Add remaining text
+      if (currentText) {
+        parts.push(<span key={key++}>{currentText}</span>);
+      }
+      
+      return <p key={index} className="text-gray-700 mb-3 leading-relaxed">{parts}</p>;
+    }
+
+    // Handle list items
+    if (line.trim().startsWith('- ')) {
+      return (
+        <li key={index} className="text-gray-700 ml-6 mb-1 leading-relaxed list-disc">
+          {line.replace(/^-\s+/, '')}
+        </li>
+      );
+    }
+
+    if (line.trim().match(/^\d+\.\s/)) {
+      return (
+        <li key={index} className="text-gray-700 ml-6 mb-1 leading-relaxed list-decimal">
+          {line.replace(/^\d+\.\s+/, '')}
+        </li>
+      );
+    }
+
+    // Empty lines become spacing
+    if (line.trim() === '') {
+      return <div key={index} className="h-2"></div>;
+    }
+
+    // Default paragraph formatting
+    return <p key={index} className="text-gray-700 mb-3 leading-relaxed">{line}</p>;
+  });
+};
+
 // Type definitions for API responses
 interface SentimentResponse {
   status: string;
@@ -156,8 +252,6 @@ export default function Analysis() {
           <nav className="hidden md:flex space-x-6">
             <Link href="/analysis" className="text-[#1a1f36] hover:text-gray-800 border-b-2 border-[#1a1f36]">Analysis</Link>
             <Link href="/portfolio" className="text-gray-600 hover:text-gray-800">Portfolio</Link>
-            <Link href="/quant" className="text-gray-600 hover:text-gray-800">Quant</Link>
-            <Link href="/sentiment" className="text-gray-600 hover:text-gray-800">Sentiment</Link>
           </nav>
           <button className="bg-[#1a1f36] text-white px-5 py-2 rounded-lg hover:bg-[#2d3452]">
             Get Started
@@ -324,30 +418,130 @@ export default function Analysis() {
           {/* Render results based on analysis type */}
           {results && (
             <div className="space-y-8">
+              {/* Sentiment Analysis Results */}
+              {analysisType === "sentiment" && results && (
+                <div className="space-y-8">
+                  <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                      <span className="text-2xl mr-2">📊</span> {results.ticker} Sentiment Overview
+                    </h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      <div className="p-4 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div className="text-sm font-medium text-gray-600 mb-1">Average Sentiment</div>
+                        <div className={`text-xl font-bold ${getSentimentColor(results.average_sentiment || 0)}`}>
+                          {(results.average_sentiment ? results.average_sentiment * 100 : 0).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="p-4 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div className="text-sm font-medium text-gray-600 mb-1">Articles Analyzed</div>
+                        <div className="text-xl font-bold text-gray-800">{results.articles_analyzed || 0}</div>
+                      </div>
+                      <div className="p-4 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div className="text-sm font-medium text-gray-600 mb-1">Time Period</div>
+                        <div className="text-xl font-bold text-gray-800">Last {daysBack} days</div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 bg-gray-50 rounded-lg p-5 border-l-4 border-[#1a1f36]">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-3">Summary</h3>
+                      {typeof results.summary === 'string' ? (
+                        <div className="text-gray-700 leading-relaxed">
+                          {renderMarkdown(results.summary)}
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                          {results.summary}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Detailed Analyses */}
+                  {results.detailed_analyses && results.detailed_analyses.length > 0 && (
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <span className="text-xl mr-2">📰</span> Detailed Article Analysis
+                      </h3>
+                      <div className="space-y-5">
+                        {results.detailed_analyses.map((analysis: DetailedAnalysis, index: number) => (
+                          <div key={index} className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
+                              <h4 className="font-medium text-gray-800 text-base">{analysis.title}</h4>
+                              <div className={`px-3 py-1 rounded-full text-xs font-semibold ${getSentimentColor(analysis.sentiment_score)} bg-opacity-10 bg-current`}>
+                                {(analysis.sentiment_score * 100).toFixed(0)}% sentiment
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-4 flex items-center">
+                              <span className="font-medium">{analysis.source}</span>
+                              <span className="mx-2">•</span>
+                              <span>{new Date(analysis.published_at).toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric'})}</span>
+                            </p>
+                            {analysis.key_drivers && (
+                              <div className="mb-3 bg-gray-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-gray-700 mb-1">Key Drivers:</div>
+                                <p className="text-sm text-gray-600">{analysis.key_drivers}</p>
+                              </div>
+                            )}
+                            {analysis.market_impact && (
+                              <div className="mb-3 bg-gray-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-gray-700 mb-1">Market Impact:</div>
+                                <p className="text-sm text-gray-600">{analysis.market_impact}</p>
+                              </div>
+                            )}
+                            <div className="mt-3">
+                              <a 
+                                href={analysis.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-[#1a1f36] hover:underline inline-flex items-center"
+                              >
+                                Read full article
+                                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Fundamental Analysis Results */}
               {analysisType === "fundamental" && results && (
                 <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                    {results.ticker} - {results.company_name} Fundamental Analysis
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <span className="text-2xl mr-2">📈</span> {results.ticker} - {results.company_name} Fundamental Analysis
                   </h2>
                   
-                  <div className="p-4 bg-light-bg rounded-lg mb-6">
-                    <div className="text-sm text-gray-600 mb-1">Sector / Industry</div>
-                    <div className="text-lg font-medium text-gray-800">{results.sector || 'N/A'} / {results.industry || 'N/A'}</div>
+                  <div className="p-5 bg-light-bg rounded-lg mb-6 shadow-sm border-l-4 border-[#1a1f36]">
+                    <div className="text-sm font-medium text-gray-600 mb-1">Sector / Industry</div>
+                    <div className="text-lg font-bold text-gray-800">{results.sector || 'N/A'} / {results.industry || 'N/A'}</div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     {Object.entries((results as FundamentalResponse)?.key_metrics || {}).map(([key, value]) => (
-                      <div key={key} className="p-4 bg-light-bg rounded-lg">
-                        <div className="text-sm text-gray-600 mb-1 capitalize">{key.replace(/_/g, " ")}</div>
-                        <div className="text-lg font-semibold text-gray-800">{value}</div>
+                      <div key={key} className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div className="text-sm font-medium text-gray-600 mb-1 capitalize">{key.replace(/_/g, " ")}</div>
+                        <div className="text-lg font-bold text-gray-800">{value}</div>
                       </div>
                     ))}
                   </div>
                   
-                  <div className="mt-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Analysis</h3>
-                    <p className="text-gray-700 whitespace-pre-line">{results.analysis || 'No analysis available'}</p>
+                  <div className="mt-6 bg-gray-50 rounded-lg p-5 border-l-4 border-[#1a1f36]">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-3">Analysis</h3>
+                    {typeof results.analysis === 'string' ? (
+                      <div className="text-gray-700 leading-relaxed">
+                        {renderMarkdown(results.analysis)}
+                      </div>
+                    ) : (
+                      <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                        {results.analysis || 'No analysis available'}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -355,132 +549,67 @@ export default function Analysis() {
               {/* Technical Analysis Results */}
               {analysisType === "technical" && results && (
                 <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                    {results.ticker} - Technical Analysis ({results.period || 'Default Period'})
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <span className="text-2xl mr-2">📊</span> {results.ticker} - Technical Analysis ({results.period || 'Default Period'})
                   </h2>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     {Object.entries((results as TechnicalResponse)?.key_metrics || {}).map(([key, value]) => (
-                      <div key={key} className="p-4 bg-light-bg rounded-lg">
-                        <div className="text-sm text-gray-600 mb-1 capitalize">{key.replace(/_/g, " ")}</div>
-                        <div className="text-lg font-semibold text-gray-800">{value}</div>
+                      <div key={key} className="p-5 bg-light-bg rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div className="text-sm font-medium text-gray-600 mb-1 capitalize">{key.replace(/_/g, " ")}</div>
+                        <div className="text-lg font-bold text-gray-800">{value}</div>
                       </div>
                     ))}
                   </div>
                   
-                  <div className="mt-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Analysis</h3>
-                    <p className="text-gray-700 whitespace-pre-line">{results.analysis || 'No analysis available'}</p>
+                  <div className="mt-6 bg-gray-50 rounded-lg p-5 border-l-4 border-[#1a1f36]">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-3">Analysis</h3>
+                    {typeof results.analysis === 'string' ? (
+                      <div className="text-gray-700 leading-relaxed">
+                        {renderMarkdown(results.analysis)}
+                      </div>
+                    ) : (
+                      <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                        {results.analysis || 'No analysis available'}
+                      </p>
+                    )}
                   </div>
                   
                   {results.charts && (
                     <div className="mt-8">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-4">Charts</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <span className="text-xl mr-2">📈</span> Charts
+                      </h3>
                       <div className="grid grid-cols-1 gap-6">
                         {results.charts.price_chart && (
-                          <div className="bg-gray-50 p-4 rounded-lg flex items-center justify-center">
+                          <div className="bg-gray-50 p-5 rounded-lg flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
                             <img 
                               src={`data:image/png;base64,${results.charts.price_chart}`} 
                               alt="Price Chart" 
-                              className="max-w-full"
+                              className="max-w-full rounded"
                             />
                           </div>
                         )}
                         
                         {results.charts.rsi_chart && (
-                          <div className="bg-gray-50 p-4 rounded-lg flex items-center justify-center">
+                          <div className="bg-gray-50 p-5 rounded-lg flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
                             <img 
                               src={`data:image/png;base64,${results.charts.rsi_chart}`} 
                               alt="RSI Chart" 
-                              className="max-w-full"
+                              className="max-w-full rounded"
                             />
                           </div>
                         )}
                         
                         {results.charts.macd_chart && (
-                          <div className="bg-gray-50 p-4 rounded-lg flex items-center justify-center">
+                          <div className="bg-gray-50 p-5 rounded-lg flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
                             <img 
                               src={`data:image/png;base64,${results.charts.macd_chart}`} 
                               alt="MACD Chart" 
-                              className="max-w-full"
+                              className="max-w-full rounded"
                             />
                           </div>
                         )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Sentiment Analysis Results */}
-              {analysisType === "sentiment" && results && (
-                <div className="space-y-8">
-                  <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                      {results.ticker} Sentiment Overview 
-                    </h2>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                      <div className="p-4 bg-light-bg rounded-lg">
-                        <div className="text-sm text-gray-600 mb-1">Average Sentiment</div>
-                        <div className={`text-xl font-semibold ${getSentimentColor(results.average_sentiment || 0)}`}>
-                          {(results.average_sentiment ? results.average_sentiment * 100 : 0).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="p-4 bg-light-bg rounded-lg">
-                        <div className="text-sm text-gray-600 mb-1">Articles Analyzed</div>
-                        <div className="text-xl font-semibold text-gray-800">{results.articles_analyzed || 0}</div>
-                      </div>
-                      <div className="p-4 bg-light-bg rounded-lg">
-                        <div className="text-sm text-gray-600 mb-1">Time Period</div>
-                        <div className="text-xl font-semibold text-gray-800">Last {daysBack} days</div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Summary</h3>
-                      <p className="text-gray-700 whitespace-pre-line">{results.summary}</p>
-                    </div>
-                  </div>
-
-                  {/* Detailed Analyses */}
-                  {results.detailed_analyses && results.detailed_analyses.length > 0 && (
-                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-4">Detailed Article Analysis</h3>
-                      <div className="space-y-4">
-                        {results.detailed_analyses.map((analysis: DetailedAnalysis, index: number) => (
-                          <div key={index} className="border border-gray-200 rounded-lg p-4">
-                            <div className="flex justify-between">
-                              <h4 className="font-medium text-gray-800 mb-2">{analysis.title}</h4>
-                              <div className={`ml-2 px-2 py-1 rounded-full text-xs ${getSentimentColor(analysis.sentiment_score)}`}>
-                                {(analysis.sentiment_score * 100).toFixed(0)}% sentiment
-                              </div>
-                            </div>
-                            <p className="text-sm text-gray-600 mb-3">{analysis.source} • {new Date(analysis.published_at).toLocaleDateString()}</p>
-                            {analysis.key_drivers && (
-                              <div className="mb-2">
-                                <div className="text-sm font-medium text-gray-700">Key Drivers:</div>
-                                <p className="text-sm text-gray-600">{analysis.key_drivers}</p>
-                              </div>
-                            )}
-                            {analysis.market_impact && (
-                              <div className="mb-2">
-                                <div className="text-sm font-medium text-gray-700">Market Impact:</div>
-                                <p className="text-sm text-gray-600">{analysis.market_impact}</p>
-                              </div>
-                            )}
-                            <div className="mt-2">
-                              <a 
-                                href={analysis.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-sm text-[#1a1f36] hover:underline"
-                              >
-                                Read full article
-                              </a>
-                            </div>
-                          </div>
-                        ))}
                       </div>
                     </div>
                   )}
